@@ -23,6 +23,16 @@ public class LevelCompleteManager : MonoBehaviour
         }
 
         Time.timeScale = 0f; // หยุดเวลาในเกม
+
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        if (player != null)
+        {
+            player.enabled = false; // หยุดรับคำสั่งทันที
+
+            // (แถม) สั่งหยุดเดินค้างด้วย เผื่อมีแรงส่งเหลืออยู่
+            Rigidbody2D rb = player.GetComponent<Rigidbody2D>();
+            if (rb != null) rb.linearVelocity = Vector2.zero;
+        }
     }
 
     // ฟังก์ชันใหม่สำหรับปุ่ม "ออกเกม"

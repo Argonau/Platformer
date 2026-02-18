@@ -1,33 +1,27 @@
 using UnityEngine;
-using UnityEngine.SceneManagement; // จำเป็นต้องมีบรรทัดนี้เพื่อใช้คำสั่งโหลดฉาก
+using UnityEngine.SceneManagement;
 
 public class GameOverManager : MonoBehaviour
 {
-    [Header("ลาก Panel Game Over มาใส่ตรงนี้")]
     public GameObject gameOverUI;
 
     void Start()
     {
-        // ซ่อนหน้า Game Over ไว้เสมอตอนเริ่มด่าน
-        if (gameOverUI != null)
-        {
-            gameOverUI.SetActive(false);
-        }
+        if (gameOverUI != null) gameOverUI.SetActive(false);
     }
 
-    // ฟังก์ชันนี้จะถูกเรียกเมื่อผู้เล่นตาย
     public void PlayerDied()
     {
-        gameOverUI.SetActive(true); // โชว์หน้า Game Over
-        Time.timeScale = 0f; // หยุดเวลาในเกม (ทำให้ตัวละครและศัตรูหยุดนิ่ง)
+        // ฟังก์ชันนี้จะถูกเรียกหลังจาก Player เล่นท่าตายจบแล้ว
+        if (gameOverUI != null) gameOverUI.SetActive(true);
+
+        // หยุดเวลาตอนนี้แหละ เพื่อให้เมนู Game Over ใช้งานได้ปกติ
+        Time.timeScale = 0f;
     }
 
-    // ฟังก์ชันนี้จะผูกไว้กับปุ่ม Restart
     public void RestartGame()
     {
-        Time.timeScale = 1f; // คืนค่าเวลาให้กลับมาเดินตามปกติก่อนโหลดฉาก
-
-        // โหลดด่านปัจจุบันที่กำลังเล่นอยู่ขึ้นมาใหม่
+        Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }
