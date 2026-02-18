@@ -12,5 +12,8 @@ EditorBuildSettings:
     path: Assets/Scenes/Hammy Hop.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   m_configObjects:
+    com.unity.adaptivePerformance.basic.provider_settings: {fileID: 11400000, guid: 20fcabdb7663e624b94d9783c968fba6, type: 2}
+    com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: b80576790adddfe49be531b242a385f6, type: 2}
+    com.unity.adaptiveperformance.simulator.provider_settings: {fileID: 11400000, guid: bb9acec38de276c4cbc00f5066f91429, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

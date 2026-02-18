@@ -3,115 +3,109 @@ using System.Collections;
 
 public class EnemyBehavior : MonoBehaviour
 {
-    [Header("ตั้งค่าศัตรู")]
-    public float moveSpeed = 2f;     // ความเร็วในการเดิน
-    public int damage = 1;           // พลังโจมตีเมื่อผู้เล่นเดินชน
-    public float bounceForce = 7f;   // แรงเด้งของตัวละครตอนเหยียบหัวศัตรู
+    public enum EnemyType { Classic, Smart, Rusher, Jumper }
+
+    [Header("1. ตั้งค่านิสัย")]
+    public EnemyType enemyType = EnemyType.Smart;
+    public bool randomizeTypeOnStart = true;
+
+    [Header("2. การเคลื่อนที่")]
+    public float moveSpeed = 2f;
+    public float rushSpeed = 5f;
+    public float jumpForce = 5f;
+    private float currentSpeed;
+    private int direction = 1;
+    private bool isDead = false;
+
+    [Header("3. ระบบเซนเซอร์")]
+    public Transform frontCheck;
+    public float checkDistance = 0.5f;
+    public LayerMask whatIsGround;
+    public LayerMask whatIsPlayer;
 
     private Rigidbody2D rb;
-    private bool movingRight = true; // กำหนดให้เริ่มเดินไปทางขวาก่อน
-    private bool isDead = false;     // สถานะว่าตายหรือยัง
+    private bool canJump = true;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        currentSpeed = moveSpeed;
+        if (randomizeTypeOnStart) enemyType = (EnemyType)Random.Range(0, 4);
     }
 
-    [System.Obsolete]
-    void Update()
+    void FixedUpdate()
     {
-        if (isDead) return; // ถ้าตายแล้ว ให้หยุดทำงานทันที
-
-        // สั่งให้ศัตรูเดินซ้าย-ขวาอย่างต่อเนื่อง
-        rb.linearVelocity = new Vector2(movingRight ? moveSpeed : -moveSpeed, rb.linearVelocity.y);
+        if (isDead) return;
+        rb.linearVelocity = new Vector2(currentSpeed * direction, rb.linearVelocity.y);
+        bool wall = Physics2D.Raycast(frontCheck.position, Vector2.right * direction, checkDistance, whatIsGround);
+        bool edge = false;
+        if (enemyType != EnemyType.Classic) { RaycastHit2D g = Physics2D.Raycast(frontCheck.position, Vector2.down, 1f, whatIsGround); if (g.collider == null) edge = true; }
+        if (wall || edge) Flip();
+        if (enemyType == EnemyType.Rusher || enemyType == EnemyType.Jumper) CheckPlayer();
     }
 
-    [System.Obsolete]
+    void CheckPlayer()
+    {
+        RaycastHit2D p = Physics2D.Raycast(frontCheck.position, Vector2.right * direction, 4f, whatIsPlayer);
+        if (p.collider != null && p.collider.CompareTag("Player"))
+        {
+            if (enemyType == EnemyType.Rusher) currentSpeed = rushSpeed;
+            else if (enemyType == EnemyType.Jumper && canJump && IsGrounded()) { rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce); StartCoroutine(JumpCooldown()); }
+        }
+        else currentSpeed = moveSpeed;
+    }
+
+    bool IsGrounded() { return Physics2D.Raycast(transform.position, Vector2.down, 1.1f, whatIsGround); }
+    IEnumerator JumpCooldown() { canJump = false; yield return new WaitForSeconds(1.5f); canJump = true; }
+    void Flip() { direction *= -1; Vector3 s = transform.localScale; s.x *= -1; transform.localScale = s; }
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (isDead) return;
 
-        // --- 1. ตรวจสอบการชนกับ "ผู้เล่น" ---
         if (collision.gameObject.CompareTag("Player"))
         {
-            // ดึงข้อมูลจุดที่ชนกันมาตรวจสอบทิศทาง
-            ContactPoint2D contact = collision.GetContact(0);
+            PlayerHealth playerHealth = collision.gameObject.GetComponent<PlayerHealth>();
 
-            // normal.y ที่ติดลบ (น้อยกว่า -0.5) แปลว่าผู้เล่นลอยอยู่เหนือศัตรูแล้วตกลงมากระแทก
-            if (contact.normal.y < -0.5f)
+            // *** 1. ถ้าผู้เล่นอมตะ -> ตายแบบดาวกระจาย ***
+            if (playerHealth != null && playerHealth.isInvincible)
             {
-                // สั่งให้ผู้เล่นเด้งกระโดดขึ้นไป
-                Rigidbody2D playerRb = collision.gameObject.GetComponent<Rigidbody2D>();
-                if (playerRb != null)
-                {
-                    playerRb.linearVelocity = new Vector2(playerRb.linearVelocity.x, bounceForce);
-                }
+                StartCoroutine(StarDeath());
+                return;
+            }
 
-                // สั่งให้ศัตรูตัวนี้โดนบี้ตาย
+            // *** 2. ถ้าไม่ได้อมตะ เช็กการเหยียบหัว ***
+            if (collision.GetContact(0).normal.y < -0.5f)
+            {
+                collision.gameObject.GetComponent<Rigidbody2D>().linearVelocity = new Vector2(0, 10f);
                 StartCoroutine(SquashAndDie());
             }
-            else
-            {
-                // ถ้าไม่ได้ตกลงมาจากด้านบน แปลว่าเป็นการชนด้านข้าง = ผู้เล่นโดนดาเมจ
-                PlayerHealth playerHealth = collision.gameObject.GetComponent<PlayerHealth>();
-                if (playerHealth != null)
-                {
-                    playerHealth.TakeDamage(damage);
-                }
-            }
-        }
-        // --- 2. ตรวจสอบการชนกับ "สิ่งแวดล้อมอื่น" (กำแพง, บล็อก, ศัตรูด้วยกัน) ---
-        else
-        {
-            ContactPoint2D contact = collision.GetContact(0);
-
-            // ตรวจสอบว่าเป็นการชนเข้าที่ด้านข้างซ้ายหรือขวาอย่างจังหรือไม่
-            if (Mathf.Abs(contact.normal.x) > 0.5f)
-            {
-                Flip(); // สั่งให้หันหลังกลับ
-            }
+            else playerHealth?.TakeDamage(1);
         }
     }
 
-    // ฟังก์ชันสำหรับกลับหลังหัน
-    void Flip()
-    {
-        movingRight = !movingRight;
-
-        // กลับด้านรูปภาพศัตรู
-        Vector3 scale = transform.localScale;
-        scale.x *= -1;
-        transform.localScale = scale;
-    }
-
-    // ฟังก์ชันแอนิเมชันโดนบี้ตาย
     IEnumerator SquashAndDie()
     {
         isDead = true;
-        rb.linearVelocity = Vector2.zero; // สั่งให้หยุดเดินทันที
+        rb.linearVelocity = Vector2.zero;
+        GetComponent<Collider2D>().enabled = false;
+        transform.localScale = new Vector3(transform.localScale.x, transform.localScale.y * 0.2f, 1f);
+        yield return new WaitForSeconds(0.5f);
+        Destroy(gameObject);
+    }
 
-        // ปิดกล่องชน จะได้ไม่พลาดไปทำดาเมจใส่ผู้เล่นซ้ำตอนกำลังจะตาย
-        Collider2D col = GetComponent<Collider2D>();
-        if (col != null) col.enabled = false;
-
-        // เตรียมทำเอฟเฟกต์บี้ (ลดขนาดความสูง แกน Y ลง)
-        Vector3 originalScale = transform.localScale;
-
-        // บี้ลงเหลือความสูงแค่ 20%
-        Vector3 squashedScale = new Vector3(originalScale.x, originalScale.y * 0.2f, originalScale.z);
-
-        float timer = 0f;
-        float squashDuration = 0.15f; // ใช้เวลาในการแบนลง 0.15 วินาที (เร็วมากๆ)
-
-        while (timer < squashDuration)
+    IEnumerator StarDeath()
+    {
+        isDead = true;
+        GetComponent<Collider2D>().enabled = false;
+        if (rb != null)
         {
-            // ค่อยๆ ลดขนาดลงจนแบนติดพื้น
-            transform.localScale = Vector3.Lerp(originalScale, squashedScale, timer / squashDuration);
-            timer += Time.deltaTime;
-            yield return null;
+            rb.bodyType = RigidbodyType2D.Dynamic;
+            rb.gravityScale = 3f;
+            rb.linearVelocity = new Vector2(Random.Range(-5f, 5f), 15f);
+            rb.angularVelocity = 1000f;
         }
-
-        // แบนเสร็จแล้ว ให้ทำลายตัวเองทิ้งออกจากฉาก
+        yield return new WaitForSeconds(2f);
         Destroy(gameObject);
     }
 }
